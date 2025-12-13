@@ -194,8 +194,9 @@ async def query_pinecone(request: QueryRequest):
                 ai_answer = str(response)
             
         except Exception as e:
+            logger.error(f"Error calling OpenAI API: {e}")
+            print(f"Error calling OpenAI API: {e}")
             # Continue without AI answer if OpenAI fails
-            pass
         
         # Calculate total score as percentage: (average of scores) * 100
         if search_results:
@@ -203,6 +204,9 @@ async def query_pinecone(request: QueryRequest):
             total_score = avg_score * 100
         else:
             total_score = 0.0
+        
+        logger.info(f"Total score calculated (percentage): {total_score:.2f}%")
+        print(f"Total score calculated (percentage): {total_score:.2f}%")
         
         return QueryResponse(
             answer=ai_answer,
