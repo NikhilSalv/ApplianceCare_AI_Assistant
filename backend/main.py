@@ -8,6 +8,10 @@ from pinecone import Pinecone
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain import hub
 from langchain_openai import ChatOpenAI
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # Load environment variables (looks in current directory and parent directories)
 load_dotenv()
@@ -179,6 +183,20 @@ async def query_pinecone(request: QueryRequest):
         
         context = "\n\n".join(context_parts)
         
+        # Calculate total score as percentage: (average of scores) * 100
+        if search_results:
+            avg_score = sum(result.score for result in search_results) / len(search_results)
+            total_score = avg_score * 100
+        else:
+            total_score = 0.0
+        
+        # Check if score is less than 25% - return fallback message
+        if total_score < 25.0:
+            return QueryResponse(
+                answer="I could not find enough information about this issue in the dataset.",
+                total_score=total_score
+            )
+        
         # Format the prompt with query and context
         ai_answer = None
         try:
@@ -197,16 +215,6 @@ async def query_pinecone(request: QueryRequest):
             logger.error(f"Error calling OpenAI API: {e}")
             print(f"Error calling OpenAI API: {e}")
             # Continue without AI answer if OpenAI fails
-        
-        # Calculate total score as percentage: (average of scores) * 100
-        if search_results:
-            avg_score = sum(result.score for result in search_results) / len(search_results)
-            total_score = avg_score * 100
-        else:
-            total_score = 0.0
-        
-        logger.info(f"Total score calculated (percentage): {total_score:.2f}%")
-        print(f"Total score calculated (percentage): {total_score:.2f}%")
         
         return QueryResponse(
             answer=ai_answer,
