@@ -5,4 +5,5 @@ pinecone
 langchain-huggingface==0.0.1
 pydantic
 langchain
+langchain-openai
 
