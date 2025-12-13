@@ -3,9 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import os
+import logging
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain import hub
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables (looks in current directory and parent directories)
 load_dotenv()
@@ -31,6 +40,38 @@ app.add_middleware(
 
 # Initialize embedding model
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+prompt = hub.pull("rlm/rag-prompt")
+# Log the prompt template - try multiple ways to display it
+try:
+    prompt_str = str(prompt)
+    prompt_template = getattr(prompt, 'template', None)
+    prompt_messages = getattr(prompt, 'messages', None)
+    
+    logger.info("=" * 80)
+    logger.info("Loaded RAG prompt template:")
+    logger.info("=" * 80)
+    if prompt_template:
+        logger.info(f"Template content:\n{prompt_template}")
+    elif prompt_messages:
+        logger.info(f"Messages:\n{prompt_messages}")
+    else:
+        logger.info(f"Prompt object:\n{prompt_str}")
+    logger.info("=" * 80)
+    # Also print to ensure it shows up
+    print("=" * 80)
+    print("Loaded RAG prompt template:")
+    print("=" * 80)
+    if prompt_template:
+        print(f"Template content:\n{prompt_template}")
+    elif prompt_messages:
+        print(f"Messages:\n{prompt_messages}")
+    else:
+        print(f"Prompt object:\n{prompt_str}")
+    print("=" * 80)
+except Exception as e:
+    logger.error(f"Error logging prompt: {e}")
+    print(f"Error logging prompt: {e}")
 
 # Initialize Pinecone
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -76,12 +117,14 @@ class QueryResponse(BaseModel):
     results: List[SearchResult]
     query: str
     total_results: int
+    context: str
     
     class Config:
         json_schema_extra = {
             "example": {
                 "query": "How to fix a washing machine that won't drain?",
                 "total_results": 5,
+                "context": "To fix a washing machine that won't drain... [combined text from all results]",
                 "results": [
                     {
                         "score": 0.85,
@@ -164,10 +207,20 @@ async def query_pinecone(request: QueryRequest):
                 chunk_index=match['metadata'].get('chunk_index')
             ))
         
+        # Combine all text from results into a single context
+        context_parts = []
+        for result in search_results:
+            if result.text.strip():
+                context_parts.append(result.text.strip())
+        
+        context = "\n\n".join(context_parts)
+        # logger.info(f"Generated context for query '{request.query}':\n{context}")
+        
         return QueryResponse(
             results=search_results,
             query=request.query,
-            total_results=len(search_results)
+            total_results=len(search_results),
+            context=context
         )
     
     except Exception as e:
