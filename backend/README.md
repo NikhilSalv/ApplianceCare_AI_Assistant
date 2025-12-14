@@ -67,3 +67,45 @@ Once the server is running, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+## Testing
+
+The project includes comprehensive pytest tests for all API endpoints.
+
+### Run Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run a specific test file
+pytest test_main.py
+
+# Run a specific test class
+pytest test_main.py::TestQueryEndpoint
+
+# Run with coverage (if pytest-cov is installed)
+pytest --cov=main --cov-report=html
+```
+
+### Test Coverage
+
+The test suite includes:
+- ✅ Root endpoint tests
+- ✅ Health check endpoint tests
+- ✅ Query endpoint tests (success, low score, errors)
+- ✅ Response model validation tests
+- ✅ Score calculation tests
+- ✅ Error handling tests
+
+### Test Structure
+
+Tests use mocking to avoid making real API calls to:
+- Pinecone (vector database)
+- OpenAI (LLM API)
+- HuggingFace (embedding model)
+
+This ensures tests run quickly and don't require API keys.
+
