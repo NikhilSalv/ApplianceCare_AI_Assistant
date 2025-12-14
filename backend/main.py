@@ -8,6 +8,8 @@ from pinecone import Pinecone
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain import hub
 from langchain_openai import ChatOpenAI
+from langfuse import Langfuse
+from langfuse.callback import CallbackHandler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,11 +55,35 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY not found in environment variables")
 
+# Initialize Langfuse
+LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
+LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
+LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+# Initialize Langfuse client and callback handler if keys are provided
+langfuse_client = None
+langfuse_handler = None
+if LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY:
+    langfuse_client = Langfuse(
+        secret_key=LANGFUSE_SECRET_KEY,
+        public_key=LANGFUSE_PUBLIC_KEY,
+        host=LANGFUSE_HOST
+    )
+    langfuse_handler = CallbackHandler(
+        secret_key=LANGFUSE_SECRET_KEY,
+        public_key=LANGFUSE_PUBLIC_KEY,
+        host=LANGFUSE_HOST
+    )
+    logger.info("Langfuse initialized successfully")
+else:
+    logger.warning("Langfuse keys not found - LLM observability disabled")
+
 # Initialize OpenAI Chat model
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo",  # You can change to "gpt-4" or "gpt-4-turbo" if needed
     temperature=0.7,
-    api_key=OPENAI_API_KEY
+    api_key=OPENAI_API_KEY,
+    callbacks=[langfuse_handler] if langfuse_handler else None
 )
 
 
@@ -199,10 +225,37 @@ async def query_pinecone(request: QueryRequest):
         
         # Format the prompt with query and context
         ai_answer = None
+        # trace = None
+        
         try:
             messages = prompt.format_messages(question=request.query, context=context)
             
+            # Create Langfuse trace for this query
+            # if langfuse_client:
+            #     trace = langfuse_client.trace(
+            #         name="appliance_repair_query",
+            #         tags=["rag", "appliance-care"],
+            #         metadata={
+            #             "query": request.query,
+            #             "total_score": total_score,
+            #             "num_results": len(search_results),
+            #             "top_k": TOP_K
+            #         }
+            #     )
+            #     
+            #     # Log Pinecone search as a span
+            #     trace.span(
+            #         name="pinecone_search",
+            #         metadata={
+            #             "query": request.query,
+            #             "results_count": len(search_results),
+            #             "scores": [r.score for r in search_results],
+            #             "sources": [r.source for r in search_results]
+            #         }
+            #     )
+            
             # Call OpenAI API with the formatted messages
+            # The callback handler will automatically track the LLM call
             response = llm.invoke(messages)
             
             # Extract the answer from the response
@@ -211,9 +264,37 @@ async def query_pinecone(request: QueryRequest):
             else:
                 ai_answer = str(response)
             
+            # Log OpenAI generation metadata
+            # if trace:
+            #     trace.span(
+            #         name="openai_generation",
+            #         metadata={
+            #             "model": "gpt-3.5-turbo",
+            #             "answer_length": len(ai_answer) if ai_answer else 0,
+            #             "total_score": total_score,
+            #             "context_length": len(context)
+            #         }
+            #     )
+            
+            # Update trace with output
+            # if trace:
+            #     trace.update(
+            #         output={
+            #             "answer": ai_answer,
+            #             "total_score": total_score
+            #         }
+            #     )
+            
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {e}")
             print(f"Error calling OpenAI API: {e}")
+            
+            # Log error to Langfuse
+            # if trace:
+            #     trace.update(
+            #         level="ERROR",
+            #         status_message=str(e)
+            #     )
             # Continue without AI answer if OpenAI fails
         
         return QueryResponse(

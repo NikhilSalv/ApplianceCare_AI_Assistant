@@ -6,6 +6,7 @@ langchain-huggingface==0.0.1
 pydantic
 langchain
 langchain-openai
+langfuse
 
 # Testing dependencies
 pytest==7.4.3
