@@ -1,10 +1,7 @@
 # 🔧 ApplianceCare AI Assistant
 
 <div align="center">
-  <video width="800" controls autoplay loop>
-    <source src="images/Demovideo.mov" type="video/quicktime">
-    Your browser does not support the video tag.
-  </video>
+  <img src="images/DemoImage.png" alt="ApplianceCare AI Assistant Demo" width="800">
 </div>
 
 An AI-powered assistant for appliance repair and maintenance, built with FastAPI backend and Next.js frontend, using Pinecone vector database for semantic search and OpenAI for answer generation.
